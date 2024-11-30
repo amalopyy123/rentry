@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Handler</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Request Handler</h1>
+
+    <!-- 表单区域 -->
+    <form id="requestForm">
+        <label for="path">Path:</label>
+        <input type="text" id="path" name="path" required>
+
+        <label for="password">Password:</label>
+        <input type="text" id="password" name="password" required>
+
+        <label for="confirmPassword">Confirm Password:</label>
+        <input type="text" id="confirmPassword" name="confirmPassword" required>
+
+        <label for="content">Content:</label>
+        <textarea id="content" name="content" oninput="auto_grow(this)" rows="4" cols="50"></textarea>
+
+        <button type="button" id="submitButton">Submit</button>
+    </form>
+
+    <!-- 请求结果显示区域 -->
+    <div id="result" class="result"></div>
+</div>
+<script>
+    function auto_grow(element) {
+        element.style.height = "5px";
+        element.style.height = (element.scrollHeight) + "px";
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const pathInput = document.getElementById('path');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const contentInput = document.getElementById('content');
+        const submitButton = document.getElementById('submitButton');
+        const resultDiv = document.getElementById('result');
+
+        let currentState = 'new';  // 默认状态为new
+
+        // 1. 页面加载时，根据当前路径请求数据
+        function fetchDataForPath() {
+            let path = pathInput.value.trim();
+
+            if (path) {
+                fetch('RequestHandle.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'get', path: path})
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            currentState = 'update';
+                            contentInput.value = data.data.content || ''; // 填充返回的内容
+                            resultDiv.textContent = ''; // 清空之前的错误信息
+                            confirmPasswordInput.style.display = 'none'; // 隐藏确认密码输入框
+                        } else {
+                            currentState = 'new';
+                            contentInput.value = ''; // 清空textarea
+                            resultDiv.textContent = data.message || 'Path not found'; // 显示错误信息
+                            confirmPasswordInput.style.display = 'block'; // 显示确认密码输入框
+                        }
+                    })
+                    .catch(error => {
+                        resultDiv.textContent = 'Error: ' + error.message;
+                    });
+            }
+        }
+
+        // 2. Path输入框变动时重新请求数据
+        pathInput.addEventListener('input', function () {
+            fetchDataForPath();
+        });
+
+        // 3. 表单提交按钮事件
+        submitButton.addEventListener('click', function () {
+            const path = pathInput.value.trim();
+            const password = passwordInput.value.trim();
+            const confirmPassword = confirmPasswordInput.value.trim();
+            const content = contentInput.value.trim();
+
+            // 4. 判断当前状态
+            if (currentState === 'update') {
+                if (path && password && content) {
+                    // 更新操作
+                    fetch('RequestHandle.php', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({action: 'update', path: path, password: password, content: content})
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            resultDiv.textContent = data.message;
+                            if (data.status === 'success') {
+                                currentState = 'update';  // 保持update状态
+                            }
+                        })
+                        .catch(error => {
+                            resultDiv.textContent = 'Error: ' + error.message;
+                        });
+                } else {
+                    resultDiv.textContent = 'Missing required parameters for update.';
+                }
+            } else if (currentState === 'new') {
+                if (password === confirmPassword) {
+                    // 插入操作
+                    fetch('RequestHandle.php', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({action: 'insert', path: path, password: password, content: content})
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            resultDiv.textContent = data.message;
+                            if (data.status === 'success') {
+                                currentState = 'update';
+                                confirmPasswordInput.style.display = 'none'; // 隐藏确认密码输入框
+                            }
+                        })
+                        .catch(error => {
+                            resultDiv.textContent = 'Error: ' + error.message;
+                        });
+                } else {
+                    resultDiv.textContent = 'Password and Confirm Password do not match.';
+                }
+            }
+        });
+        pathInput.value = window.location.pathname.replace('/', '');
+        // 初始化页面，填充当前path并请求数据
+        fetchDataForPath();
+    });
+
+</script>
+</body>
+</html>
